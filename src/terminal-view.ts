@@ -1,12 +1,10 @@
-import { ItemView, WorkspaceLeaf } from 'obsidian';
+import { FileSystemAdapter, ItemView, WorkspaceLeaf } from 'obsidian';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { PtyManager } from './pty-manager';
 import * as path from 'path';
-
-import xtermCss from '@xterm/xterm/css/xterm.css';
 
 export const TERMINAL_VIEW_TYPE = 'claude-terminal-view';
 
@@ -35,7 +33,7 @@ export class TerminalView extends ItemView {
         return 'terminal';
     }
 
-    async onOpen(): Promise<void> {
+    onOpen(): Promise<void> {
         const container = this.containerEl.children[1];
         container.empty();
         container.addClass('terminal-container');
@@ -105,8 +103,9 @@ export class TerminalView extends ItemView {
             return true;
         });
 
+        const adapter = this.app.vault.adapter as FileSystemAdapter;
         this.ptyManager = new PtyManager(this.helperPath, {
-            cwd: this.customCwd || (this.app.vault.adapter as any).basePath,
+            cwd: this.customCwd || adapter.getBasePath(),
         });
 
         this.ptyManager.start(
@@ -142,7 +141,7 @@ export class TerminalView extends ItemView {
         this.resizeObserver.observe(terminalEl);
 
         this.setupDragAndDrop(terminalEl);
-        this.setupKeyboardHandlers(terminalEl);
+        this.setupKeyboardHandlers();
 
         this.registerEvent(
             this.app.workspace.on('active-leaf-change', (leaf) => {
@@ -150,17 +149,16 @@ export class TerminalView extends ItemView {
                     setTimeout(() => {
                         if (this.terminal) {
                             this.terminal.focus();
-                            console.log('[Terminal] Auto-focused on leaf activation');
                         }
                     }, 10);
                 }
             })
         );
 
-        this.addStyles();
+        return Promise.resolve();
     }
 
-    private setupKeyboardHandlers(terminalEl: HTMLElement): void {
+    private setupKeyboardHandlers(): void {
         this.registerDomEvent(
             document,
             'keydown',
@@ -171,9 +169,7 @@ export class TerminalView extends ItemView {
                     this.lastEscTime = now;
 
                     if (timeSinceLastEsc < 400) {
-                        console.log('[Terminal] Double ESC detected (interval:', timeSinceLastEsc, 'ms), will refocus after 250ms');
                         setTimeout(() => {
-                            console.log('[Terminal] Refocusing after double ESC');
                             this.focusTerminal();
                         }, 250);
                     }
@@ -182,9 +178,9 @@ export class TerminalView extends ItemView {
             { capture: true }
         );
 
-        this.registerDomEvent(terminalEl, 'click', () => {
-            if (this.app.workspace.activeLeaf === this.leaf) {
-                console.log('[Terminal] Clicked, focusing');
+        this.registerDomEvent(this.containerEl, 'click', () => {
+            const activeView = this.app.workspace.getActiveViewOfType(TerminalView);
+            if (activeView === this) {
                 requestAnimationFrame(() => {
                     this.focusTerminal();
                 });
@@ -193,7 +189,8 @@ export class TerminalView extends ItemView {
 
         if (this.scope) {
             this.scope.register([], 'Tab', (evt: KeyboardEvent) => {
-                if (this.app.workspace.activeLeaf !== this.leaf) {
+                const activeView = this.app.workspace.getActiveViewOfType(TerminalView);
+                if (activeView !== this) {
                     return;
                 }
 
@@ -201,7 +198,6 @@ export class TerminalView extends ItemView {
                 const isInTerminal = this.containerEl.contains(activeEl);
 
                 if (!isInTerminal) {
-                    console.log('[Terminal] Tab pressed, focusing terminal');
                     evt.preventDefault();
                     this.focusTerminal();
                     return false;
@@ -216,7 +212,7 @@ export class TerminalView extends ItemView {
             e.stopPropagation();
         });
 
-        terminalEl.addEventListener('drop', async (e) => {
+        terminalEl.addEventListener('drop', (e) => {
             e.preventDefault();
             e.stopPropagation();
 
@@ -228,7 +224,8 @@ export class TerminalView extends ItemView {
 
                 if (file) {
                     const decodedFile = decodeURIComponent(file);
-                    const basePath = (this.app.vault.adapter as any).basePath;
+                    const adapter = this.app.vault.adapter as FileSystemAdapter;
+                    const basePath = adapter.getBasePath();
 
                     let actualPath = decodedFile;
                     let abstractFile = this.app.vault.getAbstractFileByPath(decodedFile);
@@ -250,7 +247,8 @@ export class TerminalView extends ItemView {
             } else if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
                 const files = Array.from(e.dataTransfer.files);
                 const paths = files.map((f: File) => {
-                    const filePath = (f as any).path || '';
+                    const fileWithPath = f as File & { path?: string };
+                    const filePath = fileWithPath.path || '';
                     return filePath ? `'${filePath}'` : '';
                 }).filter(p => p !== '').join(' ');
 
@@ -272,13 +270,11 @@ export class TerminalView extends ItemView {
             requestAnimationFrame(() => {
                 if (this.terminal?.textarea) {
                     this.terminal.textarea.focus({ preventScroll: true });
-                    console.log('[Terminal] Textarea focused via direct access');
 
                     setTimeout(() => {
                         if (this.terminal?.textarea &&
                             document.activeElement !== this.terminal.textarea) {
                             this.terminal.textarea.focus({ preventScroll: true });
-                            console.log('[Terminal] Textarea re-focused after delay');
                         }
                     }, 50);
                 }
@@ -287,7 +283,6 @@ export class TerminalView extends ItemView {
 
         if (this.terminal) {
             this.terminal.focus();
-            console.log('[Terminal] Terminal.focus() called');
         }
     }
 
@@ -297,7 +292,7 @@ export class TerminalView extends ItemView {
         }
     }
 
-    async onClose(): Promise<void> {
+    onClose(): Promise<void> {
         if (this.resizeObserver) {
             this.resizeObserver.disconnect();
             this.resizeObserver = null;
@@ -314,41 +309,7 @@ export class TerminalView extends ItemView {
         }
 
         this.fitAddon = null;
-    }
 
-    private addStyles(): void {
-        const styleEl = document.createElement('style');
-        styleEl.textContent = `
-            ${xtermCss}
-
-            .terminal-container {
-                height: 100%;
-                width: 100%;
-                padding: 0;
-                overflow: hidden;
-            }
-            .terminal-wrapper {
-                height: 100%;
-                width: 100%;
-                padding: 8px;
-            }
-            .xterm {
-                height: 100%;
-                width: 100%;
-                font-kerning: normal;
-                font-variant-ligatures: none;
-                -webkit-font-smoothing: antialiased;
-                -moz-osx-font-smoothing: grayscale;
-                text-rendering: optimizeLegibility;
-            }
-            .xterm-screen {
-                letter-spacing: 0;
-                word-spacing: 0;
-            }
-            .xterm-viewport {
-                overflow-y: auto !important;
-            }
-        `;
-        document.head.appendChild(styleEl);
+        return Promise.resolve();
     }
 }

@@ -1,4 +1,4 @@
-import { Menu, Plugin, TAbstractFile, TFolder, WorkspaceLeaf } from 'obsidian';
+import { FileSystemAdapter, Menu, Plugin, TAbstractFile, TFolder } from 'obsidian';
 import { TerminalView, TERMINAL_VIEW_TYPE } from './terminal-view';
 import * as path from 'path';
 
@@ -6,10 +6,13 @@ export default class ClaudeTerminalPlugin extends Plugin {
     private helperPath: string = '';
     private customCwd: string | null = null;
 
-    async onload() {
+    onload(): void {
+        const adapter = this.app.vault.adapter as FileSystemAdapter;
+        const basePath = adapter.getBasePath();
+
         this.helperPath = path.join(
-            (this.app.vault.adapter as any).basePath,
-            '.obsidian',
+            basePath,
+            this.app.vault.configDir,
             'plugins',
             'claude-terminal',
             'resources',
@@ -21,22 +24,22 @@ export default class ClaudeTerminalPlugin extends Plugin {
             (leaf) => new TerminalView(leaf, this.helperPath, this.customCwd || undefined)
         );
 
-        this.addRibbonIcon('terminal', 'Open Terminal', (evt) => {
+        this.addRibbonIcon('terminal', 'Open terminal', (evt) => {
             const menu = new Menu();
 
             menu.addItem((item) => {
                 item.setTitle('Open Claude Code')
                     .setIcon('bot')
                     .onClick(() => {
-                        this.activateView('claude --dangerously-skip-permissions');
+                        void this.activateView('claude --dangerously-skip-permissions');
                     });
             });
 
             menu.addItem((item) => {
-                item.setTitle('Open Terminal')
+                item.setTitle('Open terminal')
                     .setIcon('terminal')
                     .onClick(() => {
-                        this.activateView();
+                        void this.activateView();
                     });
             });
 
@@ -45,15 +48,15 @@ export default class ClaudeTerminalPlugin extends Plugin {
 
         this.addCommand({
             id: 'open-zsh-terminal',
-            name: 'Open Terminal',
+            name: 'Open terminal',
             callback: () => {
-                this.activateView();
+                void this.activateView();
             },
         });
 
         this.addCommand({
             id: 'focus-terminal',
-            name: 'Focus Terminal',
+            name: 'Focus terminal',
             callback: () => {
                 const leaves = this.app.workspace.getLeavesOfType(TERMINAL_VIEW_TYPE);
                 if (leaves.length > 0) {
@@ -64,7 +67,7 @@ export default class ClaudeTerminalPlugin extends Plugin {
                         view.focusTerminal();
                     }
                 } else {
-                    this.activateView();
+                    void this.activateView();
                 }
             },
         });
@@ -76,11 +79,12 @@ export default class ClaudeTerminalPlugin extends Plugin {
                         item.setTitle('Open in Claude Code')
                             .setIcon('bot')
                             .onClick(() => {
+                                const adapter = this.app.vault.adapter as FileSystemAdapter;
                                 const folderPath = path.join(
-                                    (this.app.vault.adapter as any).basePath,
+                                    adapter.getBasePath(),
                                     file.path
                                 );
-                                this.activateView('claude --dangerously-skip-permissions', folderPath);
+                                void this.activateView('claude --dangerously-skip-permissions', folderPath);
                             });
                     });
                 }
@@ -88,11 +92,11 @@ export default class ClaudeTerminalPlugin extends Plugin {
         );
     }
 
-    async onunload() {
-        this.app.workspace.detachLeavesOfType(TERMINAL_VIEW_TYPE);
+    onunload(): void {
+        // Don't detach leaves - Obsidian handles this automatically
     }
 
-    async activateView(initialCommand?: string, cwd?: string) {
+    async activateView(initialCommand?: string, cwd?: string): Promise<void> {
         const { workspace } = this.app;
 
         this.customCwd = cwd || null;

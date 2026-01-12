@@ -7285,8 +7285,12 @@ var PtyManager = class {
   start(onData, onExit) {
     const shell = this.options.shell || process.env.SHELL || "/bin/zsh";
     const cwd = this.options.cwd || process.env.HOME || process.cwd();
-    const userShellPath = process.env.HOME ? `${process.env.HOME}/.zshrc` : null;
-    let shellEnv = { ...process.env };
+    const shellEnv = {};
+    for (const [key, value] of Object.entries(process.env)) {
+      if (value !== void 0) {
+        shellEnv[key] = value;
+      }
+    }
     if (process.env.PATH) {
       const additionalPaths = [
         "/usr/local/bin",
@@ -7294,11 +7298,13 @@ var PtyManager = class {
         "/usr/bin",
         "/bin",
         "/usr/sbin",
-        "/sbin",
-        "~/.npm-global/bin",
-        "~/.yarn/bin",
-        "/Users/suyuan/.npm-global/bin"
+        "/sbin"
       ];
+      const homePath = process.env.HOME;
+      if (homePath) {
+        additionalPaths.push(`${homePath}/.npm-global/bin`);
+        additionalPaths.push(`${homePath}/.yarn/bin`);
+      }
       shellEnv.PATH = [
         ...additionalPaths,
         process.env.PATH
@@ -7310,15 +7316,21 @@ var PtyManager = class {
       TERM_PROGRAM: "xterm.js",
       COLORTERM: "truecolor",
       SHELL: shell,
-      HOME: process.env.HOME,
-      USER: process.env.USER,
-      LOGNAME: process.env.LOGNAME,
       LANG: process.env.LANG || "en_US.UTF-8",
       LC_ALL: process.env.LC_ALL || "en_US.UTF-8",
       LC_CTYPE: "en_US.UTF-8",
       NCURSES_NO_UTF8_ACS: "1",
       FORCE_COLOR: "3"
     };
+    if (process.env.HOME) {
+      env.HOME = process.env.HOME;
+    }
+    if (process.env.USER) {
+      env.USER = process.env.USER;
+    }
+    if (process.env.LOGNAME) {
+      env.LOGNAME = process.env.LOGNAME;
+    }
     this.process = (0, import_child_process.spawn)("python3", [this.helperPath, shell], {
       cwd,
       env,
@@ -7363,231 +7375,8 @@ var PtyManager = class {
 
 // src/terminal-view.ts
 var path = __toESM(require("path"));
-
-// node_modules/@xterm/xterm/css/xterm.css
-var xterm_default = `/**
- * Copyright (c) 2014 The xterm.js authors. All rights reserved.
- * Copyright (c) 2012-2013, Christopher Jeffrey (MIT License)
- * https://github.com/chjj/term.js
- * @license MIT
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- *
- * Originally forked from (with the author's permission):
- *   Fabrice Bellard's javascript vt100 for jslinux:
- *   http://bellard.org/jslinux/
- *   Copyright (c) 2011 Fabrice Bellard
- *   The original design remains. The terminal itself
- *   has been extended to include xterm CSI codes, among
- *   other features.
- */
-
-/**
- *  Default styles for xterm.js
- */
-
-.xterm {
-    cursor: text;
-    position: relative;
-    user-select: none;
-    -ms-user-select: none;
-    -webkit-user-select: none;
-}
-
-.xterm.focus,
-.xterm:focus {
-    outline: none;
-}
-
-.xterm .xterm-helpers {
-    position: absolute;
-    top: 0;
-    /**
-     * The z-index of the helpers must be higher than the canvases in order for
-     * IMEs to appear on top.
-     */
-    z-index: 5;
-}
-
-.xterm .xterm-helper-textarea {
-    padding: 0;
-    border: 0;
-    margin: 0;
-    /* Move textarea out of the screen to the far left, so that the cursor is not visible */
-    position: absolute;
-    opacity: 0;
-    left: -9999em;
-    top: 0;
-    width: 0;
-    height: 0;
-    z-index: -5;
-    /** Prevent wrapping so the IME appears against the textarea at the correct position */
-    white-space: nowrap;
-    overflow: hidden;
-    resize: none;
-}
-
-.xterm .composition-view {
-    /* TODO: Composition position got messed up somewhere */
-    background: #000;
-    color: #FFF;
-    display: none;
-    position: absolute;
-    white-space: nowrap;
-    z-index: 1;
-}
-
-.xterm .composition-view.active {
-    display: block;
-}
-
-.xterm .xterm-viewport {
-    /* On OS X this is required in order for the scroll bar to appear fully opaque */
-    background-color: #000;
-    overflow-y: scroll;
-    cursor: default;
-    position: absolute;
-    right: 0;
-    left: 0;
-    top: 0;
-    bottom: 0;
-}
-
-.xterm .xterm-screen {
-    position: relative;
-}
-
-.xterm .xterm-screen canvas {
-    position: absolute;
-    left: 0;
-    top: 0;
-}
-
-.xterm .xterm-scroll-area {
-    visibility: hidden;
-}
-
-.xterm-char-measure-element {
-    display: inline-block;
-    visibility: hidden;
-    position: absolute;
-    top: 0;
-    left: -9999em;
-    line-height: normal;
-}
-
-.xterm.enable-mouse-events {
-    /* When mouse events are enabled (eg. tmux), revert to the standard pointer cursor */
-    cursor: default;
-}
-
-.xterm.xterm-cursor-pointer,
-.xterm .xterm-cursor-pointer {
-    cursor: pointer;
-}
-
-.xterm.column-select.focus {
-    /* Column selection mode */
-    cursor: crosshair;
-}
-
-.xterm .xterm-accessibility:not(.debug),
-.xterm .xterm-message {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    right: 0;
-    z-index: 10;
-    color: transparent;
-    pointer-events: none;
-}
-
-.xterm .xterm-accessibility-tree:not(.debug) *::selection {
-  color: transparent;
-}
-
-.xterm .xterm-accessibility-tree {
-  user-select: text;
-  white-space: pre;
-}
-
-.xterm .live-region {
-    position: absolute;
-    left: -9999px;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-}
-
-.xterm-dim {
-    /* Dim should not apply to background, so the opacity of the foreground color is applied
-     * explicitly in the generated class and reset to 1 here */
-    opacity: 1 !important;
-}
-
-.xterm-underline-1 { text-decoration: underline; }
-.xterm-underline-2 { text-decoration: double underline; }
-.xterm-underline-3 { text-decoration: wavy underline; }
-.xterm-underline-4 { text-decoration: dotted underline; }
-.xterm-underline-5 { text-decoration: dashed underline; }
-
-.xterm-overline {
-    text-decoration: overline;
-}
-
-.xterm-overline.xterm-underline-1 { text-decoration: overline underline; }
-.xterm-overline.xterm-underline-2 { text-decoration: overline double underline; }
-.xterm-overline.xterm-underline-3 { text-decoration: overline wavy underline; }
-.xterm-overline.xterm-underline-4 { text-decoration: overline dotted underline; }
-.xterm-overline.xterm-underline-5 { text-decoration: overline dashed underline; }
-
-.xterm-strikethrough {
-    text-decoration: line-through;
-}
-
-.xterm-screen .xterm-decoration-container .xterm-decoration {
-	z-index: 6;
-	position: absolute;
-}
-
-.xterm-screen .xterm-decoration-container .xterm-decoration.xterm-decoration-top-layer {
-	z-index: 7;
-}
-
-.xterm-decoration-overview-ruler {
-    z-index: 8;
-    position: absolute;
-    top: 0;
-    right: 0;
-    pointer-events: none;
-}
-
-.xterm-decoration-top {
-    z-index: 2;
-    position: relative;
-}
-`;
-
-// src/terminal-view.ts
 var TERMINAL_VIEW_TYPE = "claude-terminal-view";
-var TerminalView = class extends import_obsidian.ItemView {
+var TerminalView = class _TerminalView extends import_obsidian.ItemView {
   constructor(leaf, helperPath, cwd) {
     super(leaf);
     this.helperPath = helperPath;
@@ -7608,7 +7397,7 @@ var TerminalView = class extends import_obsidian.ItemView {
   getIcon() {
     return "terminal";
   }
-  async onOpen() {
+  onOpen() {
     const container = this.containerEl.children[1];
     container.empty();
     container.addClass("terminal-container");
@@ -7674,8 +7463,9 @@ var TerminalView = class extends import_obsidian.ItemView {
       }
       return true;
     });
+    const adapter = this.app.vault.adapter;
     this.ptyManager = new PtyManager(this.helperPath, {
-      cwd: this.customCwd || this.app.vault.adapter.basePath
+      cwd: this.customCwd || adapter.getBasePath()
     });
     this.ptyManager.start(
       (data) => {
@@ -7708,22 +7498,21 @@ var TerminalView = class extends import_obsidian.ItemView {
     });
     this.resizeObserver.observe(terminalEl);
     this.setupDragAndDrop(terminalEl);
-    this.setupKeyboardHandlers(terminalEl);
+    this.setupKeyboardHandlers();
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
         if (leaf === this.leaf && this.terminal) {
           setTimeout(() => {
             if (this.terminal) {
               this.terminal.focus();
-              console.log("[Terminal] Auto-focused on leaf activation");
             }
           }, 10);
         }
       })
     );
-    this.addStyles();
+    return Promise.resolve();
   }
-  setupKeyboardHandlers(terminalEl) {
+  setupKeyboardHandlers() {
     this.registerDomEvent(
       document,
       "keydown",
@@ -7733,9 +7522,7 @@ var TerminalView = class extends import_obsidian.ItemView {
           const timeSinceLastEsc = now - this.lastEscTime;
           this.lastEscTime = now;
           if (timeSinceLastEsc < 400) {
-            console.log("[Terminal] Double ESC detected (interval:", timeSinceLastEsc, "ms), will refocus after 250ms");
             setTimeout(() => {
-              console.log("[Terminal] Refocusing after double ESC");
               this.focusTerminal();
             }, 250);
           }
@@ -7743,9 +7530,9 @@ var TerminalView = class extends import_obsidian.ItemView {
       },
       { capture: true }
     );
-    this.registerDomEvent(terminalEl, "click", () => {
-      if (this.app.workspace.activeLeaf === this.leaf) {
-        console.log("[Terminal] Clicked, focusing");
+    this.registerDomEvent(this.containerEl, "click", () => {
+      const activeView = this.app.workspace.getActiveViewOfType(_TerminalView);
+      if (activeView === this) {
         requestAnimationFrame(() => {
           this.focusTerminal();
         });
@@ -7753,13 +7540,13 @@ var TerminalView = class extends import_obsidian.ItemView {
     });
     if (this.scope) {
       this.scope.register([], "Tab", (evt) => {
-        if (this.app.workspace.activeLeaf !== this.leaf) {
+        const activeView = this.app.workspace.getActiveViewOfType(_TerminalView);
+        if (activeView !== this) {
           return;
         }
         const activeEl = document.activeElement;
         const isInTerminal = this.containerEl.contains(activeEl);
         if (!isInTerminal) {
-          console.log("[Terminal] Tab pressed, focusing terminal");
           evt.preventDefault();
           this.focusTerminal();
           return false;
@@ -7772,7 +7559,7 @@ var TerminalView = class extends import_obsidian.ItemView {
       e.preventDefault();
       e.stopPropagation();
     });
-    terminalEl.addEventListener("drop", async (e) => {
+    terminalEl.addEventListener("drop", (e) => {
       var _a, _b;
       e.preventDefault();
       e.stopPropagation();
@@ -7782,7 +7569,8 @@ var TerminalView = class extends import_obsidian.ItemView {
         const file = url.searchParams.get("file");
         if (file) {
           const decodedFile = decodeURIComponent(file);
-          const basePath = this.app.vault.adapter.basePath;
+          const adapter = this.app.vault.adapter;
+          const basePath = adapter.getBasePath();
           let actualPath = decodedFile;
           let abstractFile = this.app.vault.getAbstractFileByPath(decodedFile);
           if (!abstractFile && !decodedFile.endsWith(".md")) {
@@ -7800,7 +7588,8 @@ var TerminalView = class extends import_obsidian.ItemView {
       } else if (((_b = e.dataTransfer) == null ? void 0 : _b.files) && e.dataTransfer.files.length > 0) {
         const files = Array.from(e.dataTransfer.files);
         const paths = files.map((f) => {
-          const filePath = f.path || "";
+          const fileWithPath = f;
+          const filePath = fileWithPath.path || "";
           return filePath ? `'${filePath}'` : "";
         }).filter((p) => p !== "").join(" ");
         if (paths && this.ptyManager) {
@@ -7820,12 +7609,10 @@ var TerminalView = class extends import_obsidian.ItemView {
         var _a2;
         if ((_a2 = this.terminal) == null ? void 0 : _a2.textarea) {
           this.terminal.textarea.focus({ preventScroll: true });
-          console.log("[Terminal] Textarea focused via direct access");
           setTimeout(() => {
             var _a3;
             if (((_a3 = this.terminal) == null ? void 0 : _a3.textarea) && document.activeElement !== this.terminal.textarea) {
               this.terminal.textarea.focus({ preventScroll: true });
-              console.log("[Terminal] Textarea re-focused after delay");
             }
           }, 50);
         }
@@ -7833,7 +7620,6 @@ var TerminalView = class extends import_obsidian.ItemView {
     }
     if (this.terminal) {
       this.terminal.focus();
-      console.log("[Terminal] Terminal.focus() called");
     }
   }
   executeCommand(command) {
@@ -7841,7 +7627,7 @@ var TerminalView = class extends import_obsidian.ItemView {
       this.ptyManager.write(command + "\r");
     }
   }
-  async onClose() {
+  onClose() {
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
@@ -7855,41 +7641,7 @@ var TerminalView = class extends import_obsidian.ItemView {
       this.terminal = null;
     }
     this.fitAddon = null;
-  }
-  addStyles() {
-    const styleEl = document.createElement("style");
-    styleEl.textContent = `
-            ${xterm_default}
-
-            .terminal-container {
-                height: 100%;
-                width: 100%;
-                padding: 0;
-                overflow: hidden;
-            }
-            .terminal-wrapper {
-                height: 100%;
-                width: 100%;
-                padding: 8px;
-            }
-            .xterm {
-                height: 100%;
-                width: 100%;
-                font-kerning: normal;
-                font-variant-ligatures: none;
-                -webkit-font-smoothing: antialiased;
-                -moz-osx-font-smoothing: grayscale;
-                text-rendering: optimizeLegibility;
-            }
-            .xterm-screen {
-                letter-spacing: 0;
-                word-spacing: 0;
-            }
-            .xterm-viewport {
-                overflow-y: auto !important;
-            }
-        `;
-    document.head.appendChild(styleEl);
+    return Promise.resolve();
   }
 };
 
@@ -7901,10 +7653,12 @@ var ClaudeTerminalPlugin = class extends import_obsidian2.Plugin {
     this.helperPath = "";
     this.customCwd = null;
   }
-  async onload() {
+  onload() {
+    const adapter = this.app.vault.adapter;
+    const basePath = adapter.getBasePath();
     this.helperPath = path2.join(
-      this.app.vault.adapter.basePath,
-      ".obsidian",
+      basePath,
+      this.app.vault.configDir,
       "plugins",
       "claude-terminal",
       "resources",
@@ -7914,30 +7668,30 @@ var ClaudeTerminalPlugin = class extends import_obsidian2.Plugin {
       TERMINAL_VIEW_TYPE,
       (leaf) => new TerminalView(leaf, this.helperPath, this.customCwd || void 0)
     );
-    this.addRibbonIcon("terminal", "Open Terminal", (evt) => {
+    this.addRibbonIcon("terminal", "Open terminal", (evt) => {
       const menu = new import_obsidian2.Menu();
       menu.addItem((item) => {
         item.setTitle("Open Claude Code").setIcon("bot").onClick(() => {
-          this.activateView("claude --dangerously-skip-permissions");
+          void this.activateView("claude --dangerously-skip-permissions");
         });
       });
       menu.addItem((item) => {
-        item.setTitle("Open Terminal").setIcon("terminal").onClick(() => {
-          this.activateView();
+        item.setTitle("Open terminal").setIcon("terminal").onClick(() => {
+          void this.activateView();
         });
       });
       menu.showAtMouseEvent(evt);
     });
     this.addCommand({
       id: "open-zsh-terminal",
-      name: "Open Terminal",
+      name: "Open terminal",
       callback: () => {
-        this.activateView();
+        void this.activateView();
       }
     });
     this.addCommand({
       id: "focus-terminal",
-      name: "Focus Terminal",
+      name: "Focus terminal",
       callback: () => {
         const leaves = this.app.workspace.getLeavesOfType(TERMINAL_VIEW_TYPE);
         if (leaves.length > 0) {
@@ -7948,7 +7702,7 @@ var ClaudeTerminalPlugin = class extends import_obsidian2.Plugin {
             view.focusTerminal();
           }
         } else {
-          this.activateView();
+          void this.activateView();
         }
       }
     });
@@ -7957,19 +7711,19 @@ var ClaudeTerminalPlugin = class extends import_obsidian2.Plugin {
         if (file instanceof import_obsidian2.TFolder) {
           menu.addItem((item) => {
             item.setTitle("Open in Claude Code").setIcon("bot").onClick(() => {
+              const adapter2 = this.app.vault.adapter;
               const folderPath = path2.join(
-                this.app.vault.adapter.basePath,
+                adapter2.getBasePath(),
                 file.path
               );
-              this.activateView("claude --dangerously-skip-permissions", folderPath);
+              void this.activateView("claude --dangerously-skip-permissions", folderPath);
             });
           });
         }
       })
     );
   }
-  async onunload() {
-    this.app.workspace.detachLeavesOfType(TERMINAL_VIEW_TYPE);
+  onunload() {
   }
   async activateView(initialCommand, cwd) {
     const { workspace } = this.app;

@@ -1,1 +1,33 @@
 @import '@xterm/xterm/css/xterm.css';
+
+.terminal-container {
+    height: 100%;
+    width: 100%;
+    padding: 0;
+    overflow: hidden;
+}
+
+.terminal-wrapper {
+    height: 100%;
+    width: 100%;
+    padding: 8px;
+}
+
+.terminal-wrapper .xterm {
+    height: 100%;
+    width: 100%;
+    font-kerning: normal;
+    font-variant-ligatures: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+.terminal-wrapper .xterm-screen {
+    letter-spacing: 0;
+    word-spacing: 0;
+}
+
+.terminal-wrapper .xterm-viewport {
+    overflow-y: auto !important;
+}
