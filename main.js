@@ -7734,7 +7734,7 @@ var ClaudeTerminalPlugin = class extends import_obsidian2.Plugin {
         type: TERMINAL_VIEW_TYPE,
         active: true
       });
-      workspace.revealLeaf(leaf);
+      await workspace.revealLeaf(leaf);
       if (initialCommand) {
         const view = leaf.view;
         if (view && view.executeCommand) {

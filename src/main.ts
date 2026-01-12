@@ -107,7 +107,7 @@ export default class ClaudeTerminalPlugin extends Plugin {
                 type: TERMINAL_VIEW_TYPE,
                 active: true,
             });
-            workspace.revealLeaf(leaf);
+            await workspace.revealLeaf(leaf);
 
             if (initialCommand) {
                 const view = leaf.view as TerminalView;
