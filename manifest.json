@@ -3,7 +3,7 @@
   "name": "Claude Terminal",
   "version": "1.0.0",
   "minAppVersion": "0.15.0",
-  "description": "Full-featured terminal with Claude Code integration. Run commands, scripts, and access Claude AI directly in your Obsidian workspace.",
+  "description": "Embedded terminal with Claude Code integration.",
   "author": "suyuan",
   "authorUrl": "",
   "isDesktopOnly": true
