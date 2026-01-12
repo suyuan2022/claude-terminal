@@ -1,0 +1,114 @@
+import { spawn, ChildProcess } from 'child_process';
+import { Writable } from 'stream';
+import { StringDecoder } from 'string_decoder';
+import * as path from 'path';
+
+export interface PtyOptions {
+    shell?: string;
+    cwd?: string;
+}
+
+export class PtyManager {
+    private process: ChildProcess | null = null;
+    private resizeStream: Writable | null = null;
+    private decoder: StringDecoder;
+
+    constructor(
+        private helperPath: string,
+        private options: PtyOptions = {}
+    ) {
+        this.decoder = new StringDecoder('utf8');
+    }
+
+    start(onData: (data: string) => void, onExit: (code: number) => void): void {
+        const shell = this.options.shell || process.env.SHELL || '/bin/zsh';
+        const cwd = this.options.cwd || process.env.HOME || process.cwd();
+
+        const userShellPath = process.env.HOME ? `${process.env.HOME}/.zshrc` : null;
+
+        let shellEnv = { ...process.env };
+
+        if (process.env.PATH) {
+            const additionalPaths = [
+                '/usr/local/bin',
+                '/opt/homebrew/bin',
+                '/usr/bin',
+                '/bin',
+                '/usr/sbin',
+                '/sbin',
+                '~/.npm-global/bin',
+                '~/.yarn/bin',
+                '/Users/suyuan/.npm-global/bin'
+            ];
+
+            shellEnv.PATH = [
+                ...additionalPaths,
+                process.env.PATH
+            ].filter(Boolean).join(':');
+        }
+
+        const env = {
+            ...shellEnv,
+            TERM: 'xterm-256color',
+            TERM_PROGRAM: 'xterm.js',
+            COLORTERM: 'truecolor',
+            SHELL: shell,
+            HOME: process.env.HOME,
+            USER: process.env.USER,
+            LOGNAME: process.env.LOGNAME,
+            LANG: process.env.LANG || 'en_US.UTF-8',
+            LC_ALL: process.env.LC_ALL || 'en_US.UTF-8',
+            LC_CTYPE: 'en_US.UTF-8',
+            NCURSES_NO_UTF8_ACS: '1',
+            FORCE_COLOR: '3',
+        };
+
+        this.process = spawn('python3', [this.helperPath, shell], {
+            cwd,
+            env,
+            stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
+        });
+
+        if (!this.process.stdout || !this.process.stdin || !this.process.stdio[3]) {
+            throw new Error('Failed to create PTY process');
+        }
+
+        this.resizeStream = this.process.stdio[3] as Writable;
+
+        this.process.stdout.on('data', (data: Buffer) => {
+            const text = this.decoder.write(data);
+            onData(text);
+        });
+
+        this.process.on('exit', (code) => {
+            onExit(code || 0);
+        });
+
+        this.process.on('error', (err) => {
+            console.error('PTY process error:', err);
+        });
+    }
+
+    write(data: string): void {
+        if (this.process && this.process.stdin) {
+            this.process.stdin.write(data);
+        }
+    }
+
+    resize(cols: number, rows: number): void {
+        if (this.resizeStream) {
+            const buffer = Buffer.alloc(8);
+            buffer.writeUInt16LE(rows, 0);
+            buffer.writeUInt16LE(cols, 2);
+            this.resizeStream.write(buffer);
+        }
+    }
+
+    kill(): void {
+        if (this.process) {
+            this.process.kill();
+            this.process = null;
+            this.resizeStream = null;
+        }
+    }
+}

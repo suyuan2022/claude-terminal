@@ -1,0 +1,5 @@
+node_modules/
+*.js.map
+CLAUDE.md
+FOCUS_TEST.md
+.DS_Store
